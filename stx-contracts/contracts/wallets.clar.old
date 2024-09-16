@@ -1,0 +1,58 @@
+(define-map user-wallets
+  principal ;; User identity
+  {
+    primary-wallet: principal,
+    secondary-wallet: (optional principal)
+  }
+)
+
+
+(define-public (set-primary-wallet (primary principal))
+
+  (if (is-some (map-get? user-wallets primary))  ;; Check if the user's wallet already exists
+    (begin
+      (asserts! (is-eq contract-caller primary) (err u401)) ;; Ensure the caller is the transaction sender
+      (map-set user-wallets primary {primary-wallet: primary, secondary-wallet: none}) ;; Update the existing wallet
+      (ok "Primary wallet updated")
+    )
+    (begin
+      (map-insert user-wallets primary {primary-wallet: primary, secondary-wallet: none}) ;; Insert new wallet
+      (ok "Primary wallet set")
+    )
+  )
+)
+
+(define-public (register-user (user principal)) 
+  (if (is-some (map-get? user-wallets user))
+  ;; (default-to false (map-get? user-wallets user)
+    (err u1)
+    (ok (map-set user-wallets user {primary-wallet: user, secondary-wallet: none}))
+  )
+)
+
+(define-read-only (get-wallet (who principal)) 
+  (map-get? user-wallets who)
+)
+
+(define-read-only (get-secondary-wallet (primary principal)) 
+  (get secondary-wallet (get-wallet primary))
+)
+
+(define-public (set-secondary-wallet (primary principal) (secondary principal))
+  (begin 
+      (asserts! (is-some (map-get? user-wallets primary)) (err u0))
+      (let ((current-wallet (unwrap! (get-wallet primary) (err u404))))
+        (ok (map-set user-wallets tx-sender 
+          (merge current-wallet {secondary-wallet: (some secondary)})))
+      )
+  )
+)
+
+(define-public (transfer (amount uint) (sender principal) (recipient principal)) 
+
+  (begin 
+    (asserts! (is-some (map-get? user-wallets sender)) (err u0))
+    (stx-transfer? amount tx-sender recipient)
+    ;; (ok true)
+  )
+)
